@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7
+    command: ["redis-server", "--maxclients", "1000"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - app-network
+
+  leaky-bucket:
+    build: .
+    env_file:
+      - .env
+    # environment:
+    #   - ROLE=read
+    networks:
+      - app-network
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      replicas: 2
+
+  # icom-connector-write:
+  #   build: .
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     - ROLE=write
+  #   networks:
+  #     - app-network
+  #   deploy:
+  #     replicas: 4
+
+  nginx:
+    image: nginx:latest
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "8080:8080"
+    depends_on:
+      - leaky-bucket 
+    networks:
+      - app-network
+
+networks:
+  app-network:
